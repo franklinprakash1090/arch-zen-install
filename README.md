@@ -35,7 +35,7 @@ Boot into Arch ISO, set up your internet, then run:
 
 bash:
 
-Edit
+
 curl -O https://raw.githubusercontent.com/franklinprakash1090/arch-zen-install/main/install.sh
 chmod +x install.sh
 ./install.sh
@@ -43,7 +43,7 @@ After install:
 
 bash:
 
-Edit
+
 umount -R /mnt
 reboot
 🔐 Credentials
@@ -56,7 +56,7 @@ Root password: root
 🎨 Plymouth Theme (Optional)
 bash:
 
-Edit
+
 plymouth-set-default-theme -l
 plymouth-set-default-theme arch-logo
 mkinitcpio -P
