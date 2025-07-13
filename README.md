@@ -21,7 +21,7 @@ A simple Arch Linux installation script for:
 | /     | ~311GB | ext4 | ext4   |
 
 ### Format & Mount:
-```bash
+```bash:
 mkfs.fat -F32 /dev/sda1
 mkswap /dev/sda2
 mkfs.ext4 /dev/sda3
@@ -33,16 +33,16 @@ swapon /dev/sda2
 🚀 Install Instructions
 Boot into Arch ISO, set up your internet, then run:
 
-bash
-Copy
+bash:
+
 Edit
 curl -O https://raw.githubusercontent.com/franklinprakash1090/arch-zen-install/main/install.sh
 chmod +x install.sh
 ./install.sh
 After install:
 
-bash
-Copy
+bash:
+
 Edit
 umount -R /mnt
 reboot
@@ -54,8 +54,8 @@ Password: arch
 Root password: root
 
 🎨 Plymouth Theme (Optional)
-bash
-Copy
+bash:
+
 Edit
 plymouth-set-default-theme -l
 plymouth-set-default-theme arch-logo
