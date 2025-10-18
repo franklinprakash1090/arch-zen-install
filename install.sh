@@ -1,53 +1,94 @@
 #!/bin/bash
-set -e
+# Arch Linux + KDE Plasma 6 + Linux-Zen + Plymouth + PipeWire + Firefox + NetworkManager
+# Target: /dev/sdb
+# Run from Arch ISO
 
-echo "==> Installing base system"
-pacstrap -K /mnt base linux-zen linux-zen-headers linux-firmware vim sudo nano networkmanager grub efibootmgr os-prober dosfstools mtools base-devel git plymouth
+DISK="/dev/sdb"
+HOSTNAME="arch-zen"
+USERNAME="franklinprakash"
+PASSWORD="tommy"
+TIMEZONE="Asia/Kolkata"
 
+echo "=== Arch Linux (Zen kernel + KDE + PipeWire) installation on $DISK ==="
+sleep 3
+
+# 1. Partition disk
+sgdisk --zap-all $DISK
+parted -s $DISK mklabel gpt
+parted -s $DISK mkpart ESP fat32 1MiB 513MiB
+parted -s $DISK set 1 boot on
+parted -s $DISK mkpart ROOT ext4 513MiB 100%
+
+# 2. Format
+mkfs.fat -F32 ${DISK}1
+mkfs.ext4 -F ${DISK}2
+
+# 3. Mount
+mount ${DISK}2 /mnt
+mkdir -p /mnt/boot
+mount ${DISK}1 /mnt/boot
+
+# 4. Base install
+pacstrap /mnt base linux-zen linux-zen-headers linux-firmware vim sudo grub efibootmgr \
+    networkmanager network-manager-applet wpa_supplicant dialog bluez bluez-utils \
+    pipewire pipewire-audio pipewire-alsa pipewire-pulse pipewire-jack wireplumber \
+    alsa-utils sof-firmware gst-plugin-pipewire
+
+# 5. Fstab
 genfstab -U /mnt >> /mnt/etc/fstab
 
+# 6. Configure system in chroot
 arch-chroot /mnt /bin/bash <<EOF
-ln -sf /usr/share/zoneinfo/Asia/Kolkata /etc/localtime
+echo "=== Configuring system inside chroot ==="
+
+ln -sf /usr/share/zoneinfo/$TIMEZONE /etc/localtime
 hwclock --systohc
-
-echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
 locale-gen
-echo LANG=en_US.UTF-8 > /etc/locale.conf
+echo "LANG=en_US.UTF-8" > /etc/locale.conf
+echo "$HOSTNAME" > /etc/hostname
 
-echo archzen > /etc/hostname
-cat >> /etc/hosts <<END
-127.0.0.1 localhost
-::1       localhost
-127.0.1.1 archzen.localdomain archzen
-END
-
-echo "Creating user franklinprakash"
-useradd -m -G wheel franklinprakash
-echo "franklinprakash:arch" | chpasswd
-echo "root:root" | chpasswd
-echo "%wheel ALL=(ALL:ALL) ALL" > /etc/sudoers.d/wheel
-
+# Enable services
 systemctl enable NetworkManager
+systemctl enable bluetooth
 
-echo "==> Bootloader installation"
+# Create user
+useradd -m -G wheel,network,video,audio -s /bin/bash $USERNAME
+echo "$USERNAME:$PASSWORD" | chpasswd
+echo "root:$PASSWORD" | chpasswd
+echo "%wheel ALL=(ALL) ALL" > /etc/sudoers.d/wheel
+
+# Bootloader (EFI)
 grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
-sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="[^"]*/& quiet splash/' /etc/default/grub
+sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="/&quiet splash vt.global_cursor_default=0 /' /etc/default/grub
 grub-mkconfig -o /boot/grub/grub.cfg
 
-echo "==> Plymouth hook and splash"
-sed -i 's/^HOOKS=(.*/HOOKS=(base udev autodetect modconf kms keyboard keymap consolefont plymouth filesystems fsck)/' /etc/mkinitcpio.conf
+# KDE Plasma + Firefox + Plymouth + greetd
+pacman -S --noconfirm plasma-meta kde-utilities-meta konsole dolphin plasma-wayland-session firefox greetd tuigreet plymouth
+
+# greetd setup
+mkdir -p /etc/greetd
+cat > /etc/greetd/config.toml <<GREET
+[terminal]
+vt = 1
+
+[default_session]
+command = "tuigreet --time --cmd 'dbus-run-session startplasma-wayland'"
+user = "$USERNAME"
+GREET
+
+# Plymouth theme + initramfs hooks
+plymouth-set-default-theme -R spinner
+sed -i 's/HOOKS=(base udev autodetect modconf block filesystems fsck)/HOOKS=(base udev plymouth autodetect modconf block filesystems fsck)/' /etc/mkinitcpio.conf
 mkinitcpio -P
 
-echo "==> Desktop environment (Plasma)"
-pacman -Sy --noconfirm plasma-meta kde-applications sddm xorg pipewire wireplumber plasma-wayland-session
-systemctl enable sddm
+# Enable greetd for auto-login UI
+systemctl enable greetd
+systemctl set-default graphical.target
 
-echo "==> Installing zen-browser-bin (AUR)"
-cd /home/franklinprakash
-git clone https://aur.archlinux.org/zen-browser-bin.git
-chown -R franklinprakash:franklinprakash zen-browser-bin
-cd zen-browser-bin
-sudo -u franklinprakash makepkg -si --noconfirm
+echo "=== System ready inside chroot ==="
 EOF
 
-echo "==> Installation complete! You can reboot."
+# 7. Cleanup
+umount -R /mnt
+echo "✅ Installation complete. Reboot now to enjoy KDE + PipeWire + Zen kernel."
